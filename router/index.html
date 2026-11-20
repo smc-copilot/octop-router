@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="referrer" content="no-referrer" />
+  <title>企业 Octop 统一入口</title>
+  <style>
+    :root {font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#172334;background:#f4f6f9}
+    body {margin:0;min-height:100vh;display:grid;place-items:center}
+    main {width:min(430px,calc(100% - 48px));background:white;border-radius:14px;padding:36px;box-shadow:0 8px 32px #15233318}
+    h1 {font-size:24px;margin:0 0 8px} p {color:#607086;line-height:1.65}
+    label {display:block;margin:22px 0 8px;font-weight:600}
+    input {width:100%;box-sizing:border-box;font:inherit;padding:12px;border:1px solid #cbd5e1;border-radius:8px}
+    button {margin-top:16px;background:#1e4f92;color:#fff;border:0;border-radius:8px;padding:12px;width:100%;font:inherit;cursor:pointer}
+    button:disabled {opacity:.65;cursor:wait} #error {color:#ad2631;min-height:22px} a{color:#1e4f92}
+    .hint {font-size:13px}
+  </style>
+</head>
+<body>
+<main>
+  <h1>企业 Octop 统一入口</h1>
+  <p>输入公司统一账号（员工工号），系统将查询 NocoBase 中的 Octop 应用授权，并进入对应业务中心。域账号密码只在目标 Octop 登录页输入。</p>
+  <form id="router-form">
+    <label for="employee">员工工号</label>
+    <input id="employee" name="employee" autocomplete="username" maxlength="64" required autofocus placeholder="输入公司统一账号" />
+    <button id="continue" type="submit">进入我的 Octop</button>
+  </form>
+  <p id="error" role="alert" aria-live="polite"></p>
+  <p class="hint"><a href="?switch=1" id="switch">切换账号 / 清除本机记忆</a></p>
+</main>
+<script>
+(() => {
+  const key = "enterprise-octop-router-employee-v2";
+  const input = document.getElementById("employee");
+  const error = document.getElementById("error");
+  const button = document.getElementById("continue");
+  const params = new URLSearchParams(location.search);
+  if (params.has("switch")) {
+    localStorage.removeItem(key);
+    history.replaceState(null, "", location.pathname);
+  }
+  async function route(employeeNo, remember) {
+    error.textContent = "";
+    button.disabled = true;
+    button.textContent = "正在查询账号授权…";
+    try {
+      const res = await fetch("/api/resolve", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({employee_id: employeeNo}),
+        cache: "no-store",
+        credentials: "same-origin"
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.detail || "无法定位 Octop 应用");
+      if (remember) localStorage.setItem(key, employeeNo);
+      location.replace(result.target);
+    } catch (e) {
+      if (!remember) localStorage.removeItem(key);
+      error.textContent = e.message || "入口服务暂不可用";
+      button.disabled = false;
+      button.textContent = "进入我的 Octop";
+    }
+  }
+  document.getElementById("router-form").addEventListener("submit", e => {
+    e.preventDefault();
+    const value = input.value;
+    if (value) route(value, true);
+  });
+  if (!params.has("switch")) {
+    const prior = localStorage.getItem(key);
+    if (prior) { input.value = prior; route(prior, false); }
+  }
+})();
+</script>
+</body>
+</html>
